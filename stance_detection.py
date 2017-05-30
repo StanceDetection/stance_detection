@@ -33,8 +33,11 @@ class StanceDetectionClassifier:
                 self._stances.append({'Headline': headline,
                     'Body ID': body_id, 'Stance': stance})
 
-    # def train(self):
-    #     # use stored feature data to train naive Bayes' model
+    def train(self):
+        pass
+
+    def predict(self, bodies_fpath, stances_fpath):
+        pass
 
 cls = StanceDetectionClassifier()
 cls.gen_training_features('training_data/train_bodies.csv', 'training_data/train_stances.csv')
