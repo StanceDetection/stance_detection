@@ -20,8 +20,8 @@ class StanceDetectionClassifier:
             r = DictReader(f)
             self._bodies = {}
             for line in r:
-                self._bodies[int(line['Body ID'])] = {
-                        'articleBody': line['articleBody'].decode('utf-8') }
+                body = line['articleBody'].decode('utf-8')
+                self._bodies[int(line['Body ID'])] = body
 
         with open(stances_fpath, 'r') as f:
             r = DictReader(f)
