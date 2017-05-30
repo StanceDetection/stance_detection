@@ -37,8 +37,6 @@ class StanceDetectionClassifier:
     def gen_training_features(self, bodies_fpath, stances_fpath):
         self._read(bodies_fpath, stances_fpath)
         unigrams = self._train_ngrams(1)
-        # bigrams = self._train_ngrams(2)
-        self._gen_jaccard_sim()
         self._gen_jaccard_sims()
 
     def _gen_jaccard_sims(self):
