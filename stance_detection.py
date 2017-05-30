@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # import training data
 # build features
 # train naive bayes' classifer on features
@@ -6,22 +8,39 @@
 #   for sentence in body:
 #       compute and store Jaccard similarity between body and sentence
 #   compute average and maximum Jaccard similarity for the body
+# The features passed to the classifier will be:
+# ● the number of bigram and trigram
+# repetitions between the article and
+# headline, normalized by the length of
+# the article or headline (whichever is
+# longest).
+# ● The average and maximum Jaccard
+# similarities between the headline and
+# each sentence in the article body (two
+# numbers).
 
 import pdb
 from csv import DictReader
 import nltk
+from sklearn.metrics import jaccard_similarity_score
 
-def get_ngrams(text, n):
-    tokens = nltk.word_tokenize(text)
-    tokens = [ token.lower() for token in tokens if len(token) > 1 ]
-    return nltk.ngrams(tokens, n)
 
 class StanceDetectionClassifier:
+
+    def get_ngrams(text, n):
+        tokens = nltk.word_tokenize(text)
+        tokens = [ token.lower() for token in tokens if len(token) > 1 ]
+        return nltk.ngrams(tokens, n)
+
     def gen_training_features(self, bodies_fpath, stances_fpath):
         # load data and parse features. store in instance state
         self._read(bodies_fpath, stances_fpath)
         unigrams = self._train_ngrams(1)
         # bigrams = self._train_ngrams(2)
+        self._gen_jaccard_sim()
+
+    def _gen_jaccard_sim():
+        pass
 
     def _read(self, bodies_fpath, stances_fpath):
         with open(bodies_fpath, 'r') as f:
@@ -38,8 +57,10 @@ class StanceDetectionClassifier:
                 headline = line['Headline'].decode('utf-8')
                 stance = line['Stance'].decode('utf-8')
                 body_id = int(line['Body ID'])
-                self._stances.append({'Headline': headline,
-                    'Body ID': body_id, 'Stance': stance})
+                self._stances.append({
+                        'Headline': headline,
+                        'Body ID': body_id,
+                        'Stance': stance})
 
     def _train_ngrams(self, n):
         stance_similarities = []
@@ -70,4 +91,5 @@ class StanceDetectionClassifier:
         pass
 
 cls = StanceDetectionClassifier()
-cls.gen_training_features('training_data/train_bodies.csv', 'training_data/train_stances.csv')
+cls.gen_training_features('training_data/train_bodies.csv',
+        'training_data/train_stances.csv')
