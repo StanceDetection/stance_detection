@@ -6,3 +6,16 @@ The initial objective of this project is to develop a natural language processin
 
 ## Requirements
 Python 2.7
+
+## Installation
+Make sure to use the Python 2.7 version of all commands (`python` and `pip`)
+```bash
+git clone git@github.com:StanceDetection/stance_detection.git \
+&& cd stance_detection \
+&& pip install -r requirements.txt
+```
+
+## Running
+```bash
+python stance_detection.py
+```
