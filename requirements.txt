@@ -1,0 +1,12 @@
+appdirs==1.4.3
+nltk==3.2.4
+numpy==1.12.1
+packaging==16.8
+pdb==0.1
+pep8==1.7.0
+pyparsing==2.2.0
+python-gnupg==0.4.0
+PyYAML==3.12
+scikit-learn==0.18.1
+scipy==0.19.0
+six==1.10.0
