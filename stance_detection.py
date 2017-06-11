@@ -33,12 +33,20 @@ class StanceDetectionClassifier:
     REMOVE_PUNC_MAP = dict((ord(char), None) for char in string.punctuation)
 
     def __init__(self):
-        self._features = []
+        self._labeled_feature_set = []
 
     def gen_training_features(self, bodies_fpath, stances_fpath):
         self._read(bodies_fpath, stances_fpath)
         self._ngrams = self._train_ngrams(1)
         self._gen_jaccard_sims()
+
+        for i in range(len(self._stances)):
+            labeled_feature = ({
+                'ngrams':self._ngrams[i],
+                'avg_sims':self.avg_sims[i],
+                'max_sims':self.max_sims[i]},
+                self._stances[i]['Stance'])
+            self._labeled_feature_set.append(labeled_feature)
 
     def _gen_jaccard_sims(self):
         # currently assumes both body and headline are longer than 0.
@@ -73,8 +81,8 @@ class StanceDetectionClassifier:
                 jacc_sims.append(jaccard_similarity_score(headline_cpy, sent_cpy))
             avg_sim = self._threshold_parser((sum(jacc_sims) / len(jacc_sims)), [0.2])
             max_sim = self._threshold_parser(max(jacc_sims), [0.2])
-            self.avg_sims.append([avg_sim])
-            self.max_sims.append([max_sim])
+            self.avg_sims.append(avg_sim)
+            self.max_sims.append(max_sim)
 
     def _threshold_parser(self, val, threshold_ranges):
         threshold_ranges.sort()
@@ -87,25 +95,25 @@ class StanceDetectionClassifier:
         return numbuckets
 
     def _word_tokenize(self, str_list):
-        return map(lambda s: nltk.word_tokenize(s), str_list)
+        return list(map(lambda s: nltk.word_tokenize(s), str_list))
 
     def _remove_punctuation(self, str_list):
-        return map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list)
+        return list(map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list))
 
     def _read(self, bodies_fpath, stances_fpath):
-        with open(bodies_fpath, 'r') as f:
+        with open(bodies_fpath, 'r', encoding="utf-8") as f:
             r = DictReader(f)
             self._bodies = {}
             for line in r:
-                body = line['articleBody'].decode('utf-8')
+                body = line['articleBody']
                 self._bodies[int(line['Body ID'])] = body
 
-        with open(stances_fpath, 'r') as f:
+        with open(stances_fpath, 'r', encoding="utf-8") as f:
             r = DictReader(f)
             self._stances = []
             for line in r:
-                headline = line['Headline'].decode('utf-8')
-                stance = line['Stance'].decode('utf-8')
+                headline = line['Headline']
+                stance = line['Stance']
                 body_id = int(line['Body ID'])
                 self._stances.append({
                         'Headline': headline,
@@ -140,11 +148,14 @@ class StanceDetectionClassifier:
         return stance_similarities
 
     def train(self):
-        pass
+        self._nbc = nltk.classify.NaiveBayesClassifier.train(self._labeled_feature_set)
+        return
 
     def predict(self, bodies_fpath, stances_fpath):
+        # TODO: self._nbc.classify(test_set)
         pass
 
 cls = StanceDetectionClassifier()
 cls.gen_training_features('training_data/train_bodies.csv',
         'training_data/train_stances.csv')
+cls.train()
