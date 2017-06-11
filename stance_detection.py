@@ -25,6 +25,7 @@ import pdb
 import string
 from csv import DictReader
 import nltk
+nltk.download('punkt')
 from sklearn.metrics import jaccard_similarity_score
 
 
@@ -36,14 +37,15 @@ class StanceDetectionClassifier:
 
     def gen_training_features(self, bodies_fpath, stances_fpath):
         self._read(bodies_fpath, stances_fpath)
-        unigrams = self._train_ngrams(1)
+        self._ngrams = self._train_ngrams(1)
         self._gen_jaccard_sims()
 
     def _gen_jaccard_sims(self):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
-        self.avg_and_max_sims = []
+        self.avg_sims = []
+        self.max_sims = []
 
         for st in self._stances:
             body = self._bodies[st['Body ID']]
@@ -69,9 +71,20 @@ class StanceDetectionClassifier:
                     sent_cpy = sent_cpy + ([sent_cpy[-1]] * abs(len_diff))
 
                 jacc_sims.append(jaccard_similarity_score(headline_cpy, sent_cpy))
-            avg_sim = sum(jacc_sims) / len(jacc_sims)
-            max_sim = max(jacc_sims)
-            self.avg_and_max_sims.append([avg_sim, max_sim])
+            avg_sim = self._threshold_parser((sum(jacc_sims) / len(jacc_sims)), [0.2])
+            max_sim = self._threshold_parser(max(jacc_sims), [0.2])
+            self.avg_sims.append([avg_sim])
+            self.max_sims.append([max_sim])
+
+    def _threshold_parser(self, val, threshold_ranges):
+        threshold_ranges.sort()
+        numbuckets = len(threshold_ranges)
+        counter = 0
+        while counter < numbuckets:
+            if(val < threshold_ranges[counter]):
+                return counter
+            counter = counter + 1
+        return numbuckets
 
     def _word_tokenize(self, str_list):
         return map(lambda s: nltk.word_tokenize(s), str_list)
@@ -106,23 +119,23 @@ class StanceDetectionClassifier:
 
     def _train_ngrams(self, n):
         stance_similarities = []
-        body_bigrams = {}
+        body_ngrams = {}
 
         for bodyId in self._bodies:
-            body_bigrams[bodyId] = self._get_ngrams(self._bodies[bodyId], n)
+            body_ngrams[bodyId] = self._get_ngrams(self._bodies[bodyId], n)
 
         for stance in self._stances:
-            stance_bigrams = self._get_ngrams(stance['Headline'], n)
-            num_bigrams_common = 0
-            for bigram in stance_bigrams:
-                if bigram in body_bigrams[stance['Body ID']]:
-                    num_bigrams_common += 1
-            stance_similarities.append(num_bigrams_common)
+            stance_ngrams = self._get_ngrams(stance['Headline'], n)
+            num_ngrams_common = 0
+            for ngram in stance_ngrams:
+                if ngram in body_ngrams[stance['Body ID']]:
+                    num_ngrams_common += 1
+            stance_similarities.append(num_ngrams_common)
 
         # normalize the counts based on length of the article
         for i in range(len(stance_similarities)):
             body_id = self._stances[i]['Body ID']
-            stance_similarities[i] = float(stance_similarities[i])/len(self._bodies[body_id])
+            stance_similarities[i] = self._threshold_parser((float(stance_similarities[i])/len(self._bodies[body_id])), [0.2])
 
         return stance_similarities
 
