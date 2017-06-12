@@ -34,29 +34,46 @@ class StanceDetectionClassifier:
 
     def __init__(self):
         self._labeled_feature_set = []
+        self._test_feature_set = []
 
     def gen_training_features(self, bodies_fpath, stances_fpath):
-        self._read(bodies_fpath, stances_fpath)
-        self._ngrams = self._train_ngrams(1)
-        self._gen_jaccard_sims()
+        self._train_bodies, self._train_stances = self._read(bodies_fpath, stances_fpath, True)
 
-        for i in range(len(self._stances)):
+        self._train_unigrams = self._train_ngrams(1, self._train_bodies, self._train_stances)
+
+        self.train_avg_sims, self.train_max_sims = self._gen_jaccard_sims(self._train_bodies, self._train_stances)
+
+        for i in range(len(self._train_stances)):
             labeled_feature = ({
-                'ngrams':self._ngrams[i],
-                'avg_sims':self.avg_sims[i],
-                'max_sims':self.max_sims[i]},
-                self._stances[i]['Stance'])
+                'unigrams':self._train_unigrams[i],
+                'avg_sims':self.train_avg_sims[i],
+                'max_sims':self.train_max_sims[i]},
+                self._train_stances[i]['Stance'])
             self._labeled_feature_set.append(labeled_feature)
 
-    def _gen_jaccard_sims(self):
+    def gen_testing_features(self, bodies_fpath, stances_fpath):
+        self._test_bodies, self._test_stances = self._read(bodies_fpath, stances_fpath, False)
+
+        self._test_unigrams = self._train_ngrams(1, self._test_bodies, self._test_stances)
+
+        self.test_avg_sims, self.test_max_sims = self._gen_jaccard_sims(self._test_bodies, self._test_stances)
+
+        for i in range(len(self._test_stances)):
+            feature = ({
+                'unigrams':self._test_unigrams[i],
+                'avg_sims':self.test_avg_sims[i],
+                'max_sims':self.test_max_sims[i]})
+            self._test_feature_set.append(feature)
+
+    def _gen_jaccard_sims(self, bodies, stances):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
-        self.avg_sims = []
-        self.max_sims = []
+        avg_sims = []
+        max_sims = []
 
-        for st in self._stances:
-            body = self._bodies[st['Body ID']]
+        for st in stances:
+            body = bodies[st['Body ID']]
             headline = st['Headline']
             headline = headline.translate(self.REMOVE_PUNC_MAP)
             headline = nltk.word_tokenize(headline)
@@ -81,8 +98,9 @@ class StanceDetectionClassifier:
                 jacc_sims.append(jaccard_similarity_score(headline_cpy, sent_cpy))
             avg_sim = self._threshold_parser((sum(jacc_sims) / len(jacc_sims)), [0.2])
             max_sim = self._threshold_parser(max(jacc_sims), [0.2])
-            self.avg_sims.append(avg_sim)
-            self.max_sims.append(max_sim)
+            avg_sims.append(avg_sim)
+            max_sims.append(max_sim)
+        return avg_sims, max_sims
 
     def _threshold_parser(self, val, threshold_ranges):
         threshold_ranges.sort()
@@ -100,39 +118,46 @@ class StanceDetectionClassifier:
     def _remove_punctuation(self, str_list):
         return list(map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list))
 
-    def _read(self, bodies_fpath, stances_fpath):
+    def _read(self, bodies_fpath, stances_fpath, is_training):
         with open(bodies_fpath, 'r', encoding="utf-8") as f:
             r = DictReader(f)
-            self._bodies = {}
+            bodies = {}
             for line in r:
                 body = line['articleBody']
-                self._bodies[int(line['Body ID'])] = body
+                bodies[int(line['Body ID'])] = body
 
         with open(stances_fpath, 'r', encoding="utf-8") as f:
             r = DictReader(f)
-            self._stances = []
+            stances = []
             for line in r:
                 headline = line['Headline']
-                stance = line['Stance']
                 body_id = int(line['Body ID'])
-                self._stances.append({
-                        'Headline': headline,
-                        'Body ID': body_id,
-                        'Stance': stance})
+                if(is_training):
+                    stance = line['Stance']
+                    stances.append({
+                            'Headline': headline,
+                            'Body ID': body_id,
+                            'Stance': stance})
+                else:
+                    stances.append({
+                            'Headline': headline,
+                            'Body ID': body_id})
+
+        return bodies, stances
 
     def _get_ngrams(self, text, n):
         tokens = nltk.word_tokenize(text)
         tokens = [ token.lower() for token in tokens if len(token) > 1 ]
         return nltk.ngrams(tokens, n)
 
-    def _train_ngrams(self, n):
+    def _train_ngrams(self, n, bodies, stances):
         stance_similarities = []
         body_ngrams = {}
 
-        for bodyId in self._bodies:
-            body_ngrams[bodyId] = self._get_ngrams(self._bodies[bodyId], n)
+        for bodyId in bodies:
+            body_ngrams[bodyId] = self._get_ngrams(bodies[bodyId], n)
 
-        for stance in self._stances:
+        for stance in stances:
             stance_ngrams = self._get_ngrams(stance['Headline'], n)
             num_ngrams_common = 0
             for ngram in stance_ngrams:
@@ -142,8 +167,8 @@ class StanceDetectionClassifier:
 
         # normalize the counts based on length of the article
         for i in range(len(stance_similarities)):
-            body_id = self._stances[i]['Body ID']
-            stance_similarities[i] = self._threshold_parser((float(stance_similarities[i])/len(self._bodies[body_id])), [0.2])
+            body_id = stances[i]['Body ID']
+            stance_similarities[i] = self._threshold_parser((float(stance_similarities[i])/len(bodies[body_id])), [0.2])
 
         return stance_similarities
 
@@ -151,11 +176,16 @@ class StanceDetectionClassifier:
         self._nbc = nltk.classify.NaiveBayesClassifier.train(self._labeled_feature_set)
         return
 
-    def predict(self, bodies_fpath, stances_fpath):
-        # TODO: self._nbc.classify(test_set)
-        pass
+    def predict(self):
+        result = self._nbc.classify_many(self._test_feature_set)
+        # print(result)
+        return
 
 cls = StanceDetectionClassifier()
 cls.gen_training_features('training_data/train_bodies.csv',
         'training_data/train_stances.csv')
 cls.train()
+
+cls.gen_testing_features('testing_data/test_bodies.csv',
+        'testing_data/test_stances_unlabeled.csv')
+cls.predict()
