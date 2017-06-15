@@ -113,27 +113,27 @@ class StanceDetectionClassifier:
         return numbuckets
 
     def _word_tokenize(self, str_list):
-        return list(map(lambda s: nltk.word_tokenize(s), str_list))
+        return map(lambda s: nltk.word_tokenize(s), str_list)
 
     def _remove_punctuation(self, str_list):
-        return list(map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list))
+        return map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list)
 
     def _read(self, bodies_fpath, stances_fpath, is_training):
-        with open(bodies_fpath, 'r', encoding="utf-8") as f:
+        with open(bodies_fpath, 'r') as f:
             r = DictReader(f)
             bodies = {}
             for line in r:
-                body = line['articleBody']
+                body = line['articleBody'].decode('utf-8')
                 bodies[int(line['Body ID'])] = body
 
-        with open(stances_fpath, 'r', encoding="utf-8") as f:
+        with open(stances_fpath, 'r') as f:
             r = DictReader(f)
             stances = []
             for line in r:
-                headline = line['Headline']
+                headline = line['Headline'].decode('utf-8')
                 body_id = int(line['Body ID'])
                 if(is_training):
-                    stance = line['Stance']
+                    stance = line['Stance'].decode('utf-8')
                     stances.append({
                             'Headline': headline,
                             'Body ID': body_id,
@@ -178,7 +178,7 @@ class StanceDetectionClassifier:
 
     def predict(self):
         result = self._nbc.classify_many(self._test_feature_set)
-        # print(result)
+        print(result)
         return
 
 cls = StanceDetectionClassifier()
