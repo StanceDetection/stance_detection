@@ -86,15 +86,24 @@ class StanceDetectionClassifier:
         avg_sims = []
         max_sims = []
 
+        parsed_bodies_dict = {}
+
+        cache_hits = 0
+
         for st in stances:
-            body = bodies_dict[st['Body ID']]
-            headline = st['Headline']
-            headline = headline.translate(self.REMOVE_PUNC_MAP)
-            headline = nltk.word_tokenize(headline)
-            sents = nltk.sent_tokenize(body)
-            sents = self._remove_punctuation(sents)
-            sents = self._word_tokenize(sents)
-            # num_sents = len(sents)
+            if st['Body ID'] in parsed_bodies_dict: # read parsed body from cache
+                cache_hits += 1
+                sents = parsed_bodies_dict[st['Body ID']]
+            else:
+                body = bodies_dict[st['Body ID']]
+                headline = st['Headline']
+                headline = headline.translate(self.REMOVE_PUNC_MAP)
+                headline = nltk.word_tokenize(headline)
+                sents = nltk.sent_tokenize(body)
+                sents = self._remove_punctuation(sents)
+                sents = self._word_tokenize(sents)
+                parsed_bodies_dict[st['Body ID']] = sents # cache parsed body
+
             jacc_sims = []
             for sent in sents:
                 if len(sent) < 1:
@@ -110,10 +119,13 @@ class StanceDetectionClassifier:
                     sent_cpy = sent_cpy + ([sent_cpy[-1]] * abs(len_diff))
 
                 jacc_sims.append(jaccard_similarity_score(headline_cpy, sent_cpy))
+
             avg_sim = self._threshold_parser((sum(jacc_sims) / len(jacc_sims)), [0.2])
             max_sim = self._threshold_parser(max(jacc_sims), [0.2])
             avg_sims.append(avg_sim)
             max_sims.append(max_sim)
+
+        print 'cache hits: ', cache_hits, '. percent: ', cache_hits / float(len(stances))
         return avg_sims, max_sims
 
     def _threshold_parser(self, val, threshold_ranges):
