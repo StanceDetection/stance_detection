@@ -25,7 +25,6 @@
 import pdb
 import string
 import time
-import threading
 from csv import DictReader
 import nltk
 nltk.download('punkt')
@@ -45,13 +44,13 @@ class StanceDetectionClassifier:
 
         print 'Generating ngrams'
         ng_start = time.time()
-        self._train_unigrams = self.gen_ngrams(1, self._train_bodies, self._train_stances)
+        self._train_unigrams = self._gen_ngrams(1, self._train_bodies, self._train_stances)
         ng_end = time.time()
         print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
 
         print 'Generating jaccard similarities'
         js_start = time.time()
-        self.train_avg_sims, self.train_max_sims = self.gen_jaccard_sims(
+        self.train_avg_sims, self.train_max_sims = self._gen_jaccard_sims(
                 self._train_bodies,
                 self._train_stances
         )
@@ -80,7 +79,7 @@ class StanceDetectionClassifier:
                 'max_sims':self.test_max_sims[i]})
             self._test_feature_set.append(feature)
 
-    def gen_jaccard_sims(self, bodies_dict, stances):
+    def _gen_jaccard_sims(self, bodies_dict, stances):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
