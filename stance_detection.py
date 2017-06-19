@@ -43,11 +43,11 @@ class StanceDetectionClassifier:
         print 'Generating training features'
         self._train_bodies, self._train_stances = self._read(bodies_fpath, stances_fpath, True)
 
-        # print 'Generating ngrams'
-        # ng_start = time.time()
-        # self._train_unigrams = self.gen_ngrams(1, self._train_bodies, self._train_stances)
-        # ng_end = time.time()
-        # print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
+        print 'Generating ngrams'
+        ng_start = time.time()
+        self._train_unigrams = self.gen_ngrams(1, self._train_bodies, self._train_stances)
+        ng_end = time.time()
+        print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
 
         print 'Generating jaccard similarities'
         js_start = time.time()
@@ -88,26 +88,14 @@ class StanceDetectionClassifier:
         max_sims = []
 
         parsed_bodies_dict = {}
-        # for body_id, body in bodies_dict:
-        #     # body = bodies_dict[st['Body ID']]
-        #     sents = nltk.sent_tokenize(body)
-        #     sents = self._remove_punctuation(sents)
-        #     sents = self._word_tokenize(sents)
-        #     parsed_bodies_dict[st['Body ID']] = sents # cache parsed body
+        for body_id, body in bodies_dict.iteritems():
+            sents = nltk.sent_tokenize(body)
+            sents = self._remove_punctuation(sents)
+            sents = self._word_tokenize(sents)
+            parsed_bodies_dict[body_id] = sents # cache parsed body
 
-
-        cache_hits = 0
 
         for st in stances:
-            if st['Body ID'] in parsed_bodies_dict: # read parsed body from cache
-                cache_hits += 1
-                sents = parsed_bodies_dict[st['Body ID']]
-            else:
-                body = bodies_dict[st['Body ID']]
-                sents = nltk.sent_tokenize(body)
-                sents = self._remove_punctuation(sents)
-                sents = self._word_tokenize(sents)
-                parsed_bodies_dict[st['Body ID']] = sents # cache parsed body
             headline = st['Headline']
             headline = headline.translate(self.REMOVE_PUNC_MAP)
             headline = nltk.word_tokenize(headline)
@@ -133,7 +121,6 @@ class StanceDetectionClassifier:
             avg_sims.append(avg_sim)
             max_sims.append(max_sim)
 
-        print 'cache hits: ', cache_hits, '. percent: ', cache_hits / float(len(stances))
         return avg_sims, max_sims
 
     def _threshold_parser(self, val, threshold_ranges):
