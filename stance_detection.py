@@ -19,12 +19,14 @@
 # each sentence in the article body (two
 # numbers).
 
-# TODO: add stemming, lowercase everything?, replace bad characters
+# TODO: add stemming, lowercase everything?, replace bad characters,
+#       remove stop words
 
 import pdb
 import string
 from csv import DictReader
 import nltk
+import time
 nltk.download('punkt')
 from sklearn.metrics import jaccard_similarity_score
 
@@ -37,11 +39,23 @@ class StanceDetectionClassifier:
         self._test_feature_set = []
 
     def gen_training_features(self, bodies_fpath, stances_fpath):
+        print 'Generating training features'
         self._train_bodies, self._train_stances = self._read(bodies_fpath, stances_fpath, True)
 
-        self._train_unigrams = self._train_ngrams(1, self._train_bodies, self._train_stances)
+        print 'Generating ngrams'
+        ng_start = time.time()
+        self._train_unigrams = self._gen_ngrams(1, self._train_bodies, self._train_stances)
+        ng_end = time.time()
+        print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
 
-        self.train_avg_sims, self.train_max_sims = self._gen_jaccard_sims(self._train_bodies, self._train_stances)
+        print 'Generating jaccard similarities'
+        js_start = time.time()
+        self.train_avg_sims, self.train_max_sims = self._gen_jaccard_sims(
+                self._train_bodies,
+                self._train_stances
+        )
+        js_end = time.time()
+        print 'jaccard similarity generation time: ', (js_end - js_start), 'seconds'
 
         for i in range(len(self._train_stances)):
             labeled_feature = ({
@@ -54,7 +68,7 @@ class StanceDetectionClassifier:
     def gen_testing_features(self, bodies_fpath, stances_fpath):
         self._test_bodies, self._test_stances = self._read(bodies_fpath, stances_fpath, False)
 
-        self._test_unigrams = self._train_ngrams(1, self._test_bodies, self._test_stances)
+        self._test_unigrams = self._gen_ngrams(1, self._test_bodies, self._test_stances)
 
         self.test_avg_sims, self.test_max_sims = self._gen_jaccard_sims(self._test_bodies, self._test_stances)
 
@@ -65,7 +79,7 @@ class StanceDetectionClassifier:
                 'max_sims':self.test_max_sims[i]})
             self._test_feature_set.append(feature)
 
-    def _gen_jaccard_sims(self, bodies, stances):
+    def _gen_jaccard_sims(self, bodies_dict, stances):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
@@ -73,14 +87,14 @@ class StanceDetectionClassifier:
         max_sims = []
 
         for st in stances:
-            body = bodies[st['Body ID']]
+            body = bodies_dict[st['Body ID']]
             headline = st['Headline']
             headline = headline.translate(self.REMOVE_PUNC_MAP)
             headline = nltk.word_tokenize(headline)
             sents = nltk.sent_tokenize(body)
             sents = self._remove_punctuation(sents)
             sents = self._word_tokenize(sents)
-            num_sents = len(sents)
+            # num_sents = len(sents)
             jacc_sims = []
             for sent in sents:
                 if len(sent) < 1:
@@ -118,13 +132,14 @@ class StanceDetectionClassifier:
     def _remove_punctuation(self, str_list):
         return map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list)
 
+    # stances: [{'Headline': headline, 'Body ID': body_id, 'Stance': stance}, ..]
     def _read(self, bodies_fpath, stances_fpath, is_training):
         with open(bodies_fpath, 'r') as f:
             r = DictReader(f)
-            bodies = {}
+            bodies_dict = {}
             for line in r:
                 body = line['articleBody'].decode('utf-8')
-                bodies[int(line['Body ID'])] = body
+                bodies_dict[int(line['Body ID'])] = body
 
         with open(stances_fpath, 'r') as f:
             r = DictReader(f)
@@ -143,19 +158,19 @@ class StanceDetectionClassifier:
                             'Headline': headline,
                             'Body ID': body_id})
 
-        return bodies, stances
+        return bodies_dict, stances
 
     def _get_ngrams(self, text, n):
         tokens = nltk.word_tokenize(text)
         tokens = [ token.lower() for token in tokens if len(token) > 1 ]
         return nltk.ngrams(tokens, n)
 
-    def _train_ngrams(self, n, bodies, stances):
+    def _gen_ngrams(self, n, bodies_dict, stances):
         stance_similarities = []
         body_ngrams = {}
 
-        for bodyId in bodies:
-            body_ngrams[bodyId] = self._get_ngrams(bodies[bodyId], n)
+        for bodyId in bodies_dict:
+            body_ngrams[bodyId] = self._get_ngrams(bodies_dict[bodyId], n)
 
         for stance in stances:
             stance_ngrams = self._get_ngrams(stance['Headline'], n)
@@ -168,7 +183,7 @@ class StanceDetectionClassifier:
         # normalize the counts based on length of the article
         for i in range(len(stance_similarities)):
             body_id = stances[i]['Body ID']
-            stance_similarities[i] = self._threshold_parser((float(stance_similarities[i])/len(bodies[body_id])), [0.2])
+            stance_similarities[i] = self._threshold_parser((float(stance_similarities[i])/len(bodies_dict[body_id])), [0.2])
 
         return stance_similarities
 
