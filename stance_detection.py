@@ -24,9 +24,10 @@
 
 import pdb
 import string
+import time
+import threading
 from csv import DictReader
 import nltk
-import time
 nltk.download('punkt')
 from sklearn.metrics import jaccard_similarity_score
 
@@ -42,15 +43,15 @@ class StanceDetectionClassifier:
         print 'Generating training features'
         self._train_bodies, self._train_stances = self._read(bodies_fpath, stances_fpath, True)
 
-        print 'Generating ngrams'
-        ng_start = time.time()
-        self._train_unigrams = self._gen_ngrams(1, self._train_bodies, self._train_stances)
-        ng_end = time.time()
-        print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
+        # print 'Generating ngrams'
+        # ng_start = time.time()
+        # self._train_unigrams = self.gen_ngrams(1, self._train_bodies, self._train_stances)
+        # ng_end = time.time()
+        # print 'ngrams generation time: ', (ng_end - ng_start), 'seconds'
 
         print 'Generating jaccard similarities'
         js_start = time.time()
-        self.train_avg_sims, self.train_max_sims = self._gen_jaccard_sims(
+        self.train_avg_sims, self.train_max_sims = self.gen_jaccard_sims(
                 self._train_bodies,
                 self._train_stances
         )
@@ -79,7 +80,7 @@ class StanceDetectionClassifier:
                 'max_sims':self.test_max_sims[i]})
             self._test_feature_set.append(feature)
 
-    def _gen_jaccard_sims(self, bodies_dict, stances):
+    def gen_jaccard_sims(self, bodies_dict, stances):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
@@ -87,6 +88,13 @@ class StanceDetectionClassifier:
         max_sims = []
 
         parsed_bodies_dict = {}
+        # for body_id, body in bodies_dict:
+        #     # body = bodies_dict[st['Body ID']]
+        #     sents = nltk.sent_tokenize(body)
+        #     sents = self._remove_punctuation(sents)
+        #     sents = self._word_tokenize(sents)
+        #     parsed_bodies_dict[st['Body ID']] = sents # cache parsed body
+
 
         cache_hits = 0
 
@@ -96,13 +104,13 @@ class StanceDetectionClassifier:
                 sents = parsed_bodies_dict[st['Body ID']]
             else:
                 body = bodies_dict[st['Body ID']]
-                headline = st['Headline']
-                headline = headline.translate(self.REMOVE_PUNC_MAP)
-                headline = nltk.word_tokenize(headline)
                 sents = nltk.sent_tokenize(body)
                 sents = self._remove_punctuation(sents)
                 sents = self._word_tokenize(sents)
                 parsed_bodies_dict[st['Body ID']] = sents # cache parsed body
+            headline = st['Headline']
+            headline = headline.translate(self.REMOVE_PUNC_MAP)
+            headline = nltk.word_tokenize(headline)
 
             jacc_sims = []
             for sent in sents:
