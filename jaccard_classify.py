@@ -1,24 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# import training data
-# build features
-# train naive bayes' classifer on features
-
-# features: Jaccard similarity.
-#   for sentence in body:
-#       compute and store Jaccard similarity between body and sentence
-#   compute average and maximum Jaccard similarity for the body
-# The features passed to the classifier will be:
-# ● the number of bigram and trigram
-# repetitions between the article and
-# headline, normalized by the length of
-# the article or headline (whichever is
-# longest).
-# ● The average and maximum Jaccard
-# similarities between the headline and
-# each sentence in the article body (two
-# numbers).
-
 # TODO: add stemming, lowercase everything?, replace bad characters,
 #       remove stop words
 
@@ -30,7 +11,6 @@ import time
 
 import nltk
 from nltk.classify import NaiveBayesClassifier
-from sklearn.metrics import jaccard_similarity_score
 
 from dataset import DataSet
 from generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
@@ -46,8 +26,7 @@ class JaccardClassify:
         self.dataset = DataSet()
 
 
-    def do_validation(self, max_thresh=0.0, avg_thresh=0.0):
-        print 'Validating with max_thresh ', max_thresh, '. avg_thresh: ', avg_thresh
+    def do_validation(self):
         # each fold is a list of body ids.
         folds, hold_out = kfold_split(self.dataset, n_folds=10)
         #  fold_stances is a dict. keys are fold number (e.g. 0-9). hold_out_stances is list
@@ -61,7 +40,8 @@ class JaccardClassify:
             bodies = folds[fold_id]
             stances = fold_stances[fold_id]
 
-            fold_avg_sims, fold_max_sims = self._gen_jaccard_sims(bodies, stances, max_thresh, avg_thresh)
+            fold_avg_sims, fold_max_sims = self._gen_jaccard_sims(
+                    bodies, stances)
 
             labeled_feature_set = []
             for i in range(len(stances)):
@@ -75,7 +55,7 @@ class JaccardClassify:
 
         print "Generating features for hold out fold"
         holdout_avg_sims, holdout_max_sims = self._gen_jaccard_sims(
-                hold_out, hold_out_stances, max_thresh, avg_thresh)
+                hold_out, hold_out_stances)
 
         h_unlabeled_features = []
         h_labels = []
@@ -133,7 +113,7 @@ class JaccardClassify:
         return 'unrelated' if stance == 'unrelated' else 'related'
 
 
-    def _gen_jaccard_sims(self, body_ids, stances, max_thresh, avg_thresh):
+    def _gen_jaccard_sims(self, body_ids, stances):
         # currently assumes both body and headline are longer than 0.
         punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
 
@@ -160,40 +140,18 @@ class JaccardClassify:
             for sent in sents:
                 if len(sent) < 1:
                     continue
-                # extend shorter word list so that both are the same length
-                # len_diff = len(headline) - len(sent)
-                # headline_cpy = headline
-                # sent_cpy = sent
-
-                # if len_diff < 0: # sent longer than headline
-                #     headline_cpy = headline_cpy + ([headline_cpy[-1]] * abs(len_diff))
-                # elif len_diff > 0: # headline longer than sent
-                #     sent_cpy = sent_cpy + ([sent_cpy[-1]] * abs(len_diff))
-
                 hs = set(headline)
                 ss = set(sent)
                 jacc_sim = len(hs.intersection(ss)) / float(len(hs.union(ss)))
                 jacc_sims.append(jacc_sim)
-                # jacc_sims.append(jaccard_similarity_score(headline_cpy, sent_cpy))
 
-            # max_sim = self._threshold_parser(max(jacc_sims), [max_thresh])
-            # avg_sim = self._threshold_parser((sum(jacc_sims) / len(jacc_sims)), [avg_thresh])
             max_sim = max(jacc_sims)
             avg_sim = sum(jacc_sims) / float(len(jacc_sims))
+
             max_sims.append(max_sim)
             avg_sims.append(avg_sim)
 
         return avg_sims, max_sims
-
-    def _threshold_parser(self, val, threshold_ranges):
-        threshold_ranges.sort()
-        numbuckets = len(threshold_ranges)
-        counter = 0
-        while counter < numbuckets:
-            if(val < threshold_ranges[counter]):
-                return counter
-            counter = counter + 1
-        return numbuckets
 
 
     def _word_tokenize(self, str_list):
@@ -233,6 +191,5 @@ class JaccardClassify:
         return bodies_dict, stances
 
 if __name__ == "__main__":
-    print sys.argv
-    JaccardClassify().do_validation(max_thresh=sys.argv[1], avg_thresh=sys.argv[2])
+    JaccardClassify().do_validation()
 
