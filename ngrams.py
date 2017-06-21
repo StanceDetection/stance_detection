@@ -5,85 +5,104 @@
 # TODO: add stemming, replace bad characters, remove punction
 # Idea: what if we take 0 as being unknown
 
+from csv import DictReader
 import pdb
 import string
-from csv import DictReader
-import csv
+import sys
+
 import nltk
-from sklearn.metrics import jaccard_similarity_score
+from nltk.classify import NaiveBayesClassifier
 
-class StanceDetectionClassifier:
-    REMOVE_PUNC_MAP = dict((ord(char), None) for char in string.punctuation)
-    _ngram_len = 1
-    ngrams_dict = {"related": [], "unrelated": []}
-    _bodies = {}
-    _stances = []
-    _test_bodies = {}
-    _test_stances = []
-    _test_results = []
+from dataset import DataSet
+from generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
+from score import score_submission
 
-    avg_ngrams_unrelated = 0
-    avg_ngrams_related = 0
+class NgramClassify:
 
     def __init__(self):
-        self._features = []
+        self._labeled_feature_set = []
+        self._test_feature_set = []
+        self.dataset = DataSet()
+        self._ngram_len = 2
 
-    def train(self, bodies_fpath, stances_fpath):
-        self._read(bodies_fpath, stances_fpath)
+    def do_validation(self):
+        folds, hold_out = kfold_split(self.dataset, n_folds=10)
+        fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
 
-        print('generating ngrams of length ' + str(self._ngram_len))
-        self._train_ngrams(self._ngram_len)
+        labeled_feat_dict = {}
 
-        unrelated = self.ngrams_dict["unrelated"]
-        related = self.ngrams_dict["related"]
+        print "Generating features for each fold"
+        for fold_id in fold_stances:
+            print "Generating features for fold ", fold_id
+            bodies = folds[fold_id]
+            stances = fold_stances[fold_id]
 
-        self.avg_ngrams_unrelated = float(reduce(lambda x, y: x + y, unrelated)) / len(unrelated)
-        self.avg_ngrams_related = float(reduce(lambda x, y: x + y, related)) / len(related)
+            # need to write this function, I dont think i'll be returning both
+            # of these, since common ngrams is only 1 value, theres not really
+            # a max/avg
+            common_ngrams = self._gen_common_ngrams(bodies, stances, self._ngram_len)
+            labeled_feature_set = []
+            for i in range(len(stances)):
+                labeled_feature = ({
+                    'common_ngrams':common_ngrams[i]},
+                    self._process_stance(stances[i]['Stance']))
+                labeled_feature_set.append(labeled_feature)
 
-        print('avg ngrams for unrelated headlines - bodies: ' + str(self.avg_ngrams_unrelated))
-        print('avg ngrams for related headlines - bodies: ' + str(self.avg_ngrams_related))
+            labeled_feat_dict[fold_id] = labeled_feature_set
 
-    def predict(self, bodies_fpath, stances_fpath):
-        self._read_tests(bodies_fpath, stances_fpath)
-        self._predict_relevance(self._ngram_len)
-        pdb.set_trace()
+        print "Generating features for hold out fold"
+        holdout_common_ngrams = self._gen_common_ngrams(hold_out, hold_out_stances, self._ngram_len)
 
-    def _remove_punctuation(self, str_list):
-        return map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list)
+        h_unlabeled_features = []
+        h_labels = []
+        for i in range(len(hold_out_stances)):
+            unlabeled_feature = {
+                    'common_ngrams':holdout_common_ngrams[i]}
+            label = self._process_stance(hold_out_stances[i]['Stance'])
 
-    def _read(self, bodies_fpath, stances_fpath):
-        with open(bodies_fpath, 'r') as f:
-            r = DictReader(f)
-            for line in r:
-                body = line['articleBody'].decode('utf-8')
-                self._bodies[int(line['Body ID'])] = body
+            h_unlabeled_features.append(unlabeled_feature)
+            h_labels.append(label)
 
-        with open(stances_fpath, 'r') as f:
-            r = DictReader(f)
-            for line in r:
-                headline = line['Headline'].decode('utf-8')
-                stance = line['Stance'].decode('utf-8')
-                body_id = int(line['Body ID'])
-                self._stances.append({
-                        'Headline': headline,
-                        'Body ID': body_id,
-                        'Stance': stance})
+        fold_accuracy = {}
+        best_fold_accuracy = 0.0
+        classifiers = []
 
-    def _read_tests(self, bodies_fpath, stances_fpath):
-        with open(bodies_fpath, 'r') as f:
-            r = DictReader(f)
-            for line in r:
-                body = line['articleBody'].decode('utf-8')
-                self._test_bodies[int(line['Body ID'])] = body
+        print "Validating using each fold as testing set"
+        for fold_id in fold_stances:
+            fold_ids = list(range(len(folds)))
+            del fold_ids[fold_id]
 
-        with open(stances_fpath, 'r') as f:
-            r = DictReader(f)
-            for line in r:
-                headline = line['Headline'].decode('utf-8')
-                body_id = int(line['Body ID'])
-                self._test_stances.append({
-                        'Headline': headline,
-                        'Body ID': body_id, })
+            training_set = [feat for fid in fold_ids for feat in labeled_feat_dict[fid]]
+            testing_set = []
+            testing_labels = []
+
+            for feat, label in labeled_feat_dict[fold_id]:
+                testing_set.append(feat)
+                testing_labels.append(label)
+
+            classifier = NaiveBayesClassifier.train(labeled_feature_set)
+            classifiers.append(classifier)
+            pred = classifier.classify_many(testing_set)
+
+            accuracy = self._score(pred, testing_labels)
+            print "Fold ", fold_id, ", accuracy: ", accuracy
+            if accuracy > best_fold_accuracy:
+                best_fold_accuracy = accuracy
+                best_fold_cls = classifier
+
+        h_res = best_fold_cls.classify_many(h_unlabeled_features)
+        print 'holdout score: ', self._score(h_res, h_labels)
+
+    def _score(self, predicted, actual):
+        num_correct = 0
+        for idx in range(len(predicted)):
+            if predicted[idx] == actual[idx]:
+                num_correct += 1
+        accuracy = num_correct / float(len(predicted))
+        return accuracy
+
+    def _process_stance(self, stance):
+        return 'unrelated' if stance == 'unrelated' else 'related'
 
     def _get_ngrams(self, text, n):
         tokens = nltk.word_tokenize(text)
@@ -91,53 +110,23 @@ class StanceDetectionClassifier:
         ngram_list = list(nltk.ngrams(tokens, n))
         return ngram_list
 
-    def _train_ngrams(self, n):
-        body_ngrams = {}
+    def _gen_common_ngrams(self, body_ids, stances, n):
+        common_ngrams = []
+        body_ngrams_dict = {}
 
-        for bodyId in self._bodies:
-            body_ngrams[bodyId] = self._get_ngrams(self._bodies[bodyId], n)
+        for body_id in body_ids:
+            body_ngrams_dict[body_id] = self._get_ngrams(self.dataset.articles[body_id], n)
 
-        for stance in self._stances:
+        for stance in stances:
             stance_ngrams = self._get_ngrams(stance['Headline'], n)
 
             num_ngrams_common = 0
             for ngram in stance_ngrams:
-                if ngram in body_ngrams[stance['Body ID']]:
+                if ngram in body_ngrams_dict[stance['Body ID']]:
                     num_ngrams_common += 1
-            if stance["Stance"] == "unrelated":
-                self.ngrams_dict["unrelated"].append(num_ngrams_common)
-            else:
-                self.ngrams_dict["related"].append(num_ngrams_common)
+            common_ngrams.append(num_ngrams_common)
 
-    def _predict_relevance(self, n):
-        with open('results.csv', 'wb') as csvfile:
-            csvwriter = csv.writer(csvfile, delimiter=',',
-                                   quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csvwriter.writerow( ('Headline','Body ID','Stance') )
-
-            body_ngrams = {}
-            mid = (self.avg_ngrams_unrelated + self.avg_ngrams_related)/2
-            mid = 4.2
-
-            for bodyId in self._test_bodies:
-                body_ngrams[bodyId] = self._get_ngrams(self._test_bodies[bodyId], n)
-
-            for headline in self._test_stances:
-                headline_ngrams = self._get_ngrams(headline['Headline'], n)
-                num_ngrams_common = 0
-                for ngram in headline_ngrams:
-                    if ngram in body_ngrams[headline['Body ID']]:
-                        num_ngrams_common += 1
-                prediction = ""
-                if num_ngrams_common < mid:
-                    prediction = "unrelated"
-                else:
-                    prediction = "discuss"
-
-                txt = headline['Headline'].encode('utf-8')
-                csvwriter.writerow( (txt, str(headline['Body ID']), prediction) )
+        return common_ngrams
 
 if __name__ == "__main__":
-    cls = StanceDetectionClassifier()
-    cls.train('training_data/train_bodies.csv', 'training_data/train_stances.csv')
-    cls.predict('testing_data/test_bodies.csv', 'testing_data/test_stances_unlabeled.csv')
+    NgramClassify().do_validation()
