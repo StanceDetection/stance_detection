@@ -14,6 +14,7 @@ from nltk.classify import NaiveBayesClassifier
 
 from libs.dataset import DataSet
 from libs.gen_ngrams import NgramsGenerator
+from libs.gen_jaccard_sims import JaccardGenerator
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
 
@@ -41,8 +42,8 @@ class JaccardClassify:
             bodies = folds[fold_id]
             stances = fold_stances[fold_id]
 
-            fold_avg_sims, fold_max_sims = self._gen_jaccard_sims(
-                    bodies, stances)
+            fold_avg_sims, fold_max_sims = JaccardGenerator().gen_jaccard_sims(
+                    self.dataset, bodies, stances)
             common_ngrams = NgramsGenerator().gen_common_ngrams(
                     self.dataset, bodies, stances, self._ngram_len)
 
@@ -58,8 +59,8 @@ class JaccardClassify:
             labeled_feat_dict[fold_id] = labeled_feature_set
 
         print "Generating features for hold out fold"
-        holdout_avg_sims, holdout_max_sims = self._gen_jaccard_sims(
-                hold_out, hold_out_stances)
+        holdout_avg_sims, holdout_max_sims = JaccardGenerator().gen_jaccard_sims(
+                self.dataset, hold_out, hold_out_stances)
         holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
                 self.dataset, hold_out, hold_out_stances, self._ngram_len)
 
