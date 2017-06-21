@@ -75,16 +75,18 @@ class JaccardClassify:
             fold_ids = list(range(len(folds)))
             del fold_ids[fold_id] # deleted fold is test set for this run
 
+            # training set is every fold except for the testing fold (fold_id)
             training_set = [feat for fid in fold_ids for feat in labeled_feat_dict[fid]]
 
             testing_set = []
             testing_labels = []
 
+            # testing set is just the testing fold (fold_id)
             for feat, label in labeled_feat_dict[fold_id]:
                 testing_set.append(feat)
                 testing_labels.append(label)
 
-            classifier = NaiveBayesClassifier.train(labeled_feature_set)
+            classifier = NaiveBayesClassifier.train(training_set)
             classifiers.append(classifier)
             pred = classifier.classify_many(testing_set)
 
