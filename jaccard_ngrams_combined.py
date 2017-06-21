@@ -12,9 +12,10 @@ import time
 import nltk
 from nltk.classify import NaiveBayesClassifier
 
-from dataset import DataSet
-from generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
-from score import score_submission
+from libs.dataset import DataSet
+from libs.gen_ngrams import NgramsGenerator
+from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
+from libs.score import score_submission
 
 
 class JaccardClassify:
@@ -42,7 +43,8 @@ class JaccardClassify:
 
             fold_avg_sims, fold_max_sims = self._gen_jaccard_sims(
                     bodies, stances)
-            common_ngrams = self._gen_common_ngrams(bodies, stances, self._ngram_len)
+            common_ngrams = NgramsGenerator().gen_common_ngrams(
+                    self.dataset, bodies, stances, self._ngram_len)
 
             labeled_feature_set = []
             for i in range(len(stances)):
@@ -58,7 +60,8 @@ class JaccardClassify:
         print "Generating features for hold out fold"
         holdout_avg_sims, holdout_max_sims = self._gen_jaccard_sims(
                 hold_out, hold_out_stances)
-        holdout_common_ngrams = self._gen_common_ngrams(hold_out, hold_out_stances, self._ngram_len)
+        holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
+                self.dataset, hold_out, hold_out_stances, self._ngram_len)
 
         h_unlabeled_features = []
         h_labels = []

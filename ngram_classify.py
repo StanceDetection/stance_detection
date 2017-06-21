@@ -13,9 +13,10 @@ import sys
 import nltk
 from nltk.classify import NaiveBayesClassifier
 
-from dataset import DataSet
-from generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
-from score import score_submission
+from libs.dataset import DataSet
+from libs.gen_ngrams import NgramsGenerator
+from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
+from libs.score import score_submission
 
 class NgramClassify:
 
@@ -40,7 +41,8 @@ class NgramClassify:
             # need to write this function, I dont think i'll be returning both
             # of these, since common ngrams is only 1 value, theres not really
             # a max/avg
-            common_ngrams = self._gen_common_ngrams(bodies, stances, self._ngram_len)
+            common_ngrams = NgramsGenerator().gen_common_ngrams(
+                    self.dataset, bodies, stances, self._ngram_len)
             labeled_feature_set = []
             for i in range(len(stances)):
                 labeled_feature = ({
@@ -51,7 +53,8 @@ class NgramClassify:
             labeled_feat_dict[fold_id] = labeled_feature_set
 
         print "Generating features for hold out fold"
-        holdout_common_ngrams = self._gen_common_ngrams(hold_out, hold_out_stances, self._ngram_len)
+        holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
+                self.dataset, hold_out, hold_out_stances, self._ngram_len)
 
         h_unlabeled_features = []
         h_labels = []
@@ -103,30 +106,6 @@ class NgramClassify:
 
     def _process_stance(self, stance):
         return 'unrelated' if stance == 'unrelated' else 'related'
-
-    def _get_ngrams(self, text, n):
-        tokens = nltk.word_tokenize(text)
-        tokens = [ token.lower() for token in tokens if len(token) > 1 ]
-        ngram_list = list(nltk.ngrams(tokens, n))
-        return ngram_list
-
-    def _gen_common_ngrams(self, body_ids, stances, n):
-        common_ngrams = []
-        body_ngrams_dict = {}
-
-        for body_id in body_ids:
-            body_ngrams_dict[body_id] = self._get_ngrams(self.dataset.articles[body_id], n)
-
-        for stance in stances:
-            stance_ngrams = self._get_ngrams(stance['Headline'], n)
-
-            num_ngrams_common = 0
-            for ngram in stance_ngrams:
-                if ngram in body_ngrams_dict[stance['Body ID']]:
-                    num_ngrams_common += 1
-            common_ngrams.append(num_ngrams_common)
-
-        return common_ngrams
 
 if __name__ == "__main__":
     NgramClassify().do_validation()
