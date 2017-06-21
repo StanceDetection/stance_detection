@@ -5,6 +5,7 @@
 
 from csv import DictReader
 import pdb
+import string
 import sys
 import time
 
@@ -12,17 +13,18 @@ import nltk
 from nltk.classify import NaiveBayesClassifier
 
 from libs.dataset import DataSet
+from libs.gen_ngrams import NgramsGenerator
+from libs.gen_jaccard_sims import JaccardGenerator
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
-from libs.gen_jaccard_sims import JaccardGenerator
 
 
-class JaccardClassify:
+class StanceClassifier:
     def __init__(self):
         self._labeled_feature_set = []
         self._test_feature_set = []
         self.dataset = DataSet()
-
+        self._ngram_len = 2
 
     def do_validation(self):
         # each fold is a list of body ids.
@@ -40,12 +42,15 @@ class JaccardClassify:
 
             fold_avg_sims, fold_max_sims = JaccardGenerator().gen_jaccard_sims(
                     self.dataset, bodies, stances)
+            common_ngrams = NgramsGenerator().gen_common_ngrams(
+                    self.dataset, bodies, stances, self._ngram_len)
 
             labeled_feature_set = []
             for i in range(len(stances)):
                 labeled_feature = ({
                     'avg_sims':fold_avg_sims[i],
-                    'max_sims':fold_max_sims[i]},
+                    'max_sims':fold_max_sims[i],
+                    'common_ngrams':common_ngrams[i]},
                     self._process_stance(stances[i]['Stance']))
                 labeled_feature_set.append(labeled_feature)
 
@@ -54,13 +59,16 @@ class JaccardClassify:
         print "Generating features for hold out fold"
         holdout_avg_sims, holdout_max_sims = JaccardGenerator().gen_jaccard_sims(
                 self.dataset, hold_out, hold_out_stances)
+        holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
+                self.dataset, hold_out, hold_out_stances, self._ngram_len)
 
         h_unlabeled_features = []
         h_labels = []
         for i in range(len(hold_out_stances)):
             unlabeled_feature = {
                 'avg_sims': holdout_avg_sims[i],
-                'max_sims': holdout_max_sims[i]}
+                'max_sims': holdout_max_sims[i],
+                'common_ngrams':holdout_common_ngrams[i]}
             label = self._process_stance(hold_out_stances[i]['Stance'])
 
             h_unlabeled_features.append(unlabeled_feature)
@@ -112,5 +120,5 @@ class JaccardClassify:
 
 
 if __name__ == "__main__":
-    JaccardClassify().do_validation()
+    StanceClassifier().do_validation()
 
