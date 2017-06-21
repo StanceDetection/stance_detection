@@ -19,9 +19,7 @@ from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_
 from libs.score import score_submission
 
 
-class JaccardClassify:
-    REMOVE_PUNC_MAP = dict((ord(char), None) for char in string.punctuation)
-
+class StanceClassifier:
     def __init__(self):
         self._labeled_feature_set = []
         self._test_feature_set = []
@@ -121,80 +119,6 @@ class JaccardClassify:
         return 'unrelated' if stance == 'unrelated' else 'related'
 
 
-    def _get_ngrams(self, text, n):
-        tokens = nltk.word_tokenize(text)
-        tokens = [ token.lower() for token in tokens if len(token) > 1 ]
-        ngram_list = list(nltk.ngrams(tokens, n))
-        return ngram_list
-
-
-    def _gen_common_ngrams(self, body_ids, stances, n):
-        common_ngrams = []
-        body_ngrams_dict = {}
-
-        for body_id in body_ids:
-            body_ngrams_dict[body_id] = self._get_ngrams(self.dataset.articles[body_id], n)
-
-        for stance in stances:
-            stance_ngrams = self._get_ngrams(stance['Headline'], n)
-
-            num_ngrams_common = 0
-            for ngram in stance_ngrams:
-                if ngram in body_ngrams_dict[stance['Body ID']]:
-                    num_ngrams_common += 1
-            common_ngrams.append(num_ngrams_common)
-
-        return common_ngrams
-
-
-    def _gen_jaccard_sims(self, body_ids, stances):
-        # currently assumes both body and headline are longer than 0.
-        punc_rem_tokenizer = nltk.RegexpTokenizer(r'\w+')
-
-        avg_sims = []
-        max_sims = []
-
-        parsed_bodies_dict = {}
-        # for body_id, body in self.dataset.articles.iteritems():
-        for body_id in body_ids:
-            body = self.dataset.articles[body_id].lower()
-            sents = nltk.sent_tokenize(body)
-            sents = self._remove_punctuation(sents)
-            sents = self._word_tokenize(sents)
-            parsed_bodies_dict[body_id] = sents # cache parsed body
-
-        for st in stances:
-            headline = st['Headline'].lower()
-            headline = headline.translate(self.REMOVE_PUNC_MAP)
-            headline = nltk.word_tokenize(headline)
-            body_id = st['Body ID']
-            sents = parsed_bodies_dict[body_id]
-
-            jacc_sims = []
-            for sent in sents:
-                if len(sent) < 1:
-                    continue
-                hs = set(headline)
-                ss = set(sent)
-                jacc_sim = len(hs.intersection(ss)) / float(len(hs.union(ss)))
-                jacc_sims.append(jacc_sim)
-
-            max_sim = max(jacc_sims)
-            avg_sim = sum(jacc_sims) / float(len(jacc_sims))
-
-            max_sims.append(max_sim)
-            avg_sims.append(avg_sim)
-
-        return avg_sims, max_sims
-
-
-    def _word_tokenize(self, str_list):
-        return map(lambda s: nltk.word_tokenize(s), str_list)
-
-
-    def _remove_punctuation(self, str_list):
-        return map(lambda s: s.translate(self.REMOVE_PUNC_MAP), str_list)
-
 if __name__ == "__main__":
-    JaccardClassify().do_validation()
+    StanceClassifier().do_validation()
 
