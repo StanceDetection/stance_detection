@@ -29,7 +29,8 @@ from csv import DictReader
 import nltk
 nltk.download('punkt')
 from sklearn.metrics import jaccard_similarity_score
-
+from gensim.models import word2vec
+from scipy import spatial
 
 class StanceDetectionClassifier:
     REMOVE_PUNC_MAP = dict((ord(char), None) for char in string.punctuation)
@@ -193,6 +194,32 @@ class StanceDetectionClassifier:
 
         return stance_similarities
 
+    def wordvectors(self):
+        sentences = word2vec.Text8Corpus('text8')
+        model = word2vec.Word2Vec(sentences, size=200)
+        coslist = []
+
+        for stance in self._test_stances:
+            newSentence = True
+            newHeading = True
+            for word in self._test_bodies[stance['Body ID']].split('\n', 1)[0].split(' '):
+                if word in model.wv.vocab:
+                    if newSentence:
+                        sentencevector = model.wv[word]
+                        newSentence = False
+                    else:
+                        sentencevector = sentencevector + model.wv[word]
+            for word in stance['Headline'].split(' '):
+                if word in model.wv.vocab:
+                    if newHeading:
+                        headingvector = model.wv[word]
+                        newHeading = False
+                    else:
+                        headingvector = headingvector + model.wv[word]
+            coslist.append(1 - spatial.distance.cosine(headingvector, sentencevector))
+        print(sum(costlist)/len(coslist))
+
+
     def train(self):
         self._nbc = nltk.classify.NaiveBayesClassifier.train(self._labeled_feature_set)
         return
@@ -210,3 +237,4 @@ cls.train()
 cls.gen_testing_features('testing_data/test_bodies.csv',
         'testing_data/test_stances_unlabeled.csv')
 cls.predict()
+cls.wordvectors()
