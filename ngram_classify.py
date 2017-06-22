@@ -83,7 +83,7 @@ class NgramClassify:
                 testing_set.append(feat)
                 testing_labels.append(label)
 
-            classifier = NaiveBayesClassifier.train(labeled_feature_set)
+            classifier = NaiveBayesClassifier.train(training_set)
             classifiers.append(classifier)
             pred = classifier.classify_many(testing_set)
 
