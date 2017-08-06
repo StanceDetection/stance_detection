@@ -15,8 +15,10 @@ from nltk.classify import NaiveBayesClassifier
 from libs.dataset import DataSet
 from libs.gen_ngrams import NgramsGenerator
 from libs.gen_jaccard_sims import JaccardGenerator
+from libs.gen_wordvectors import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
+from gensim.models import word2vec
 
 
 class StanceClassifier:
@@ -31,6 +33,9 @@ class StanceClassifier:
         folds, hold_out = kfold_split(self.dataset, n_folds=10)
         #  fold_stances is a dict. keys are fold number (e.g. 0-9). hold_out_stances is list
         fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
+        # https://cs.fit.edu/~mmahoney/compression/textdata.html
+        sentences = word2vec.Text8Corpus('text8')
+        model = word2vec.Word2Vec(sentences, size=200)
 
         labeled_feat_dict = {}
 
@@ -44,13 +49,16 @@ class StanceClassifier:
                     self.dataset, bodies, stances)
             common_ngrams = NgramsGenerator().gen_common_ngrams(
                     self.dataset, bodies, stances, self._ngram_len)
+            wordvectors = WordVector().gen_wordvectors(
+                    self.dataset, bodies, stances, model)
 
             labeled_feature_set = []
             for i in range(len(stances)):
                 labeled_feature = ({
                     'avg_sims':fold_avg_sims[i],
                     'max_sims':fold_max_sims[i],
-                    'common_ngrams':common_ngrams[i]},
+                    'common_ngrams':common_ngrams[i],
+                    'word_vectors':wordvectors[i]},
                     self._process_stance(stances[i]['Stance']))
                 labeled_feature_set.append(labeled_feature)
 
@@ -61,6 +69,8 @@ class StanceClassifier:
                 self.dataset, hold_out, hold_out_stances)
         holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
                 self.dataset, hold_out, hold_out_stances, self._ngram_len)
+        holdout_wordvectors = WordVector().gen_wordvectors(
+                self.dataset, hold_out, hold_out_stances, model)
 
         h_unlabeled_features = []
         h_labels = []
@@ -68,7 +78,8 @@ class StanceClassifier:
             unlabeled_feature = {
                 'avg_sims': holdout_avg_sims[i],
                 'max_sims': holdout_max_sims[i],
-                'common_ngrams':holdout_common_ngrams[i]}
+                'common_ngrams': holdout_common_ngrams[i],
+                'word_vectors': holdout_wordvectors[i]},
             label = self._process_stance(hold_out_stances[i]['Stance'])
 
             h_unlabeled_features.append(unlabeled_feature)
@@ -103,8 +114,7 @@ class StanceClassifier:
                 best_fold_cls = classifier
 
         h_res = best_fold_cls.classify_many(h_unlabeled_features)
-        print 'holdout score:', self._score(h_res, h_labels)
-
+        # print 'holdout score:', self._score(h_res, h_labels)
 
     def _score(self, predicted, actual):
         num_correct = 0
@@ -121,4 +131,3 @@ class StanceClassifier:
 
 if __name__ == "__main__":
     StanceClassifier().do_validation()
-

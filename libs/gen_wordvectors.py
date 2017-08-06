@@ -1,13 +1,9 @@
-from gensim.models import word2vec
 from scipy import spatial
 from csv import DictReader
 
 class WordVector:
 
-    def gen_wordvectors(self, dataset, body_ids, stances):
-        # https://cs.fit.edu/~mmahoney/compression/textdata.html
-        sentences = word2vec.Text8Corpus('text8')
-        model = word2vec.Word2Vec(sentences, size=200)
+    def gen_wordvectors(self, dataset, body_ids, stances, model):
         wordvectordists = []
 
         for stance in stances:
@@ -32,7 +28,6 @@ class WordVector:
             if(headingvector is not None and sentencevector is not None):
                 wordvectordists.append(1 - spatial.distance.cosine(headingvector, sentencevector))
             else:
-                print(stance['Headline'])
                 wordvectordists.append(0)
 
         return wordvectordists

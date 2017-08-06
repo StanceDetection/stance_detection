@@ -2,6 +2,8 @@ from libs.dataset import DataSet
 from libs.gen_wordvectors import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
+from gensim.models import word2vec
+from nltk.classify import NaiveBayesClassifier
 
 class WordVectorClassify:
 
@@ -11,6 +13,9 @@ class WordVectorClassify:
     def do_validation(self):
         folds, hold_out = kfold_split(self.dataset, n_folds=10)
         fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
+        # https://cs.fit.edu/~mmahoney/compression/textdata.html
+        sentences = word2vec.Text8Corpus('text8')
+        model = word2vec.Word2Vec(sentences, size=200)
 
         labeled_feat_dict = {}
 
@@ -21,7 +26,7 @@ class WordVectorClassify:
             stances = fold_stances[fold_id]
 
             wordvectors = WordVector().gen_wordvectors(
-                    self.dataset, bodies, stances)
+                    self.dataset, bodies, stances, model)
             labeled_feature_set = []
             for i in range(len(stances)):
                 labeled_feature = ({
@@ -33,7 +38,7 @@ class WordVectorClassify:
 
         print "Generating features for hold out fold"
         holdout_wordvectors = WordVector().gen_wordvectors(
-                self.dataset, hold_out, hold_out_stances)
+                self.dataset, hold_out, hold_out_stances, model)
         h_unlabeled_features = []
         h_labels = []
         for i in range(len(hold_out_stances)):
