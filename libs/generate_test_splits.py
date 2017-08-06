@@ -15,10 +15,10 @@ def generate_hold_out_split (dataset, training = 0.8, base_dir="splits"):
     hold_out_ids = article_ids[int(training * len(article_ids)):]
 
     # write the split body ids out to files for future use
-    with open(base_dir+ "/"+ "training_ids.txt", "w") as f:
+    with open(base_dir+ "/"+ "training_ids.txt", "w+") as f:
         f.write("\n".join([str(id) for id in training_ids]))
 
-    with open(base_dir+ "/"+ "hold_out_ids.txt", "w") as f:
+    with open(base_dir+ "/"+ "hold_out_ids.txt", "w+") as f:
         f.write("\n".join([str(id) for id in hold_out_ids]))
 
 def read_ids(file,base):
@@ -29,7 +29,7 @@ def read_ids(file,base):
         return ids
 
 def kfold_split(dataset, training = 0.8, n_folds = 10, base_dir="splits"):
-    generate_hold_out_split(dataset,training,base_dir)
+    generate_hold_out_split(dataset, training, base_dir)
 
     training_ids = read_ids("training_ids.txt", base_dir)
     hold_out_ids = read_ids("hold_out_ids.txt", base_dir)
