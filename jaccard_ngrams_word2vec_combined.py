@@ -79,7 +79,7 @@ class StanceClassifier:
                 'avg_sims': holdout_avg_sims[i],
                 'max_sims': holdout_max_sims[i],
                 'common_ngrams': holdout_common_ngrams[i],
-                'word_vectors': holdout_wordvectors[i]},
+                'word_vectors': holdout_wordvectors[i]}
             label = self._process_stance(hold_out_stances[i]['Stance'])
 
             h_unlabeled_features.append(unlabeled_feature)
@@ -114,7 +114,7 @@ class StanceClassifier:
                 best_fold_cls = classifier
 
         h_res = best_fold_cls.classify_many(h_unlabeled_features)
-        # print 'holdout score:', self._score(h_res, h_labels)
+        print 'holdout score:', self._score(h_res, h_labels)
 
     def _score(self, predicted, actual):
         num_correct = 0
