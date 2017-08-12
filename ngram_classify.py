@@ -24,7 +24,7 @@ class NgramClassify:
         self._labeled_feature_set = []
         self._test_feature_set = []
         self.dataset = DataSet()
-        self._ngram_len = 2
+        self._ngram_len = 3
 
     def do_validation(self):
         folds, hold_out = kfold_split(self.dataset, n_folds=10)
@@ -37,6 +37,18 @@ class NgramClassify:
             print "Generating features for fold ", fold_id
             bodies = folds[fold_id]
             stances = fold_stances[fold_id]
+
+            # split into 50/50 unrelated-related
+            related = []
+            unrelated = []
+            for stance in stances:
+                if stance['Stance'] in ['discuss', 'agrees', 'disagrees']:
+                    related.append(stance);
+                else:
+                    unrelated.append(stance);
+
+            unrelated = unrelated[:len(related)]
+            stances = related + unrelated;
 
             # need to write this function, I dont think i'll be returning both
             # of these, since common ngrams is only 1 value, theres not really

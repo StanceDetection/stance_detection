@@ -38,6 +38,18 @@ class JaccardClassify:
             bodies = folds[fold_id]
             stances = fold_stances[fold_id]
 
+            # split into 50/50 unrelated-related
+            related = []
+            unrelated = []
+            for stance in stances:
+                if stance['Stance'] in ['discuss', 'agrees', 'disagrees']:
+                    related.append(stance);
+                else:
+                    unrelated.append(stance);
+
+            unrelated = unrelated[:len(related)]
+            stances = related + unrelated;
+
             fold_avg_sims, fold_max_sims = JaccardGenerator().gen_jaccard_sims(
                     self.dataset, bodies, stances)
 
