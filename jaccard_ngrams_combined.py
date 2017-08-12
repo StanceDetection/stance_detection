@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# TODO: add stemming, lowercase everything?, replace bad characters,
-#       remove stop words
-
 from csv import DictReader
 import os
 import pdb
@@ -21,6 +18,7 @@ from libs.score import score_submission
 
 
 class StanceClassifier:
+
     def __init__(self):
         self._labeled_feature_set = []
         self._test_feature_set = []
@@ -48,11 +46,12 @@ class StanceClassifier:
 
             labeled_feature_set = []
             for i in range(len(stances)):
-                labeled_feature = ({
-                    'avg_sims':fold_avg_sims[i],
-                    'max_sims':fold_max_sims[i],
-                    'common_ngrams':common_ngrams[i]},
-                    self._process_stance(stances[i]['Stance']))
+                features = {
+                        'avg_sims':fold_avg_sims[i],
+                        'max_sims':fold_max_sims[i],
+                        'common_ngrams':common_ngrams[i]}
+                label = self._process_stance(stances[i]['Stance'])
+                labeled_feature = (features, label)
                 labeled_feature_set.append(labeled_feature)
 
             labeled_feat_dict[fold_id] = labeled_feature_set
@@ -117,7 +116,7 @@ class StanceClassifier:
 
 
     def _process_stance(self, stance):
-        return 'unrelated' if stance == 'unrelated' else 'related'
+        return stance
 
 
 if __name__ == "__main__":
