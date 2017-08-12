@@ -1,26 +1,15 @@
-# -*- coding: utf-8 -*-
-
-# TODO: add stemming, lowercase everything?, replace bad characters,
-#       remove stop words
-
-from csv import DictReader
-import os
-import pdb
-import string
-import sys
-import time
-
 import nltk
-from nltk.classify import NaiveBayesClassifier
+import numpy
 
 from libs.dataset import DataSet
-from libs.gen_ngrams import NgramsGenerator
-from libs.gen_jaccard_sims import JaccardGenerator
-from libs.gen_wordvectors import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
+
 from gensim.models import word2vec
 
+from keras.models import Sequential
+from keras.layers import Dense, Activation, LSTM
+from keras.layers.embedding import Embedding # TODO: needed?
 
 class StanceClassifier:
     def __init__(self):
@@ -30,13 +19,9 @@ class StanceClassifier:
         self._ngram_len = 2
 
     def do_validation(self):
-        # each fold is a list of body ids.
-        folds, hold_out = kfold_split(self.dataset, n_folds=10)
-        #  fold_stances is a dict. keys are fold number (e.g. 0-9). hold_out_stances is list
-        fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
-        # https://cs.fit.edu/~mmahoney/compression/textdata.html
 
-        labeled_feat_dict = {}
+        folds, hold_out = kfold_split(self.dataset, n_folds=10)
+        fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
 
         print "Generating features for each fold"
         for fold_id in fold_stances:
@@ -66,6 +51,7 @@ class StanceClassifier:
         holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
                 self.dataset, hold_out, hold_out_stances, self._ngram_len)
 
+        # TODO: Needed?
         h_unlabeled_features = []
         h_labels = []
         for i in range(len(hold_out_stances)):
@@ -88,8 +74,13 @@ class StanceClassifier:
             del fold_ids[fold_id] # deleted fold is test set for this run
 
             training_set = [feat for fid in fold_ids for feat in labeled_feat_dict[fid]]
+            x_train = []
+            y_train = []
 
-            print(training_set)
+            # Pull out x_train and y_train
+            for tup in training_set:
+                print(tup[0])
+                print(tup[1])
 
             testing_set = []
             testing_labels = []
@@ -97,6 +88,29 @@ class StanceClassifier:
             for feat, label in labeled_feat_dict[fold_id]:
                 testing_set.append(feat)
                 testing_labels.append(label)
+
+
+            # Init Classifier
+            model = Sequential()
+
+            # Stack Layers
+            model.add(Dense(units=64, input_dim=100))
+            model.add(Activation('relu'))
+            model.add(Dense(units=10))
+            model.add(Activation('softmax'))
+
+            # Configure Learning Process
+            model.compile(loss='categorical_crossentropy',
+                        optimizer='sgd',
+                        metrics=['accuracy'])
+
+            # NOTE: Manually feed model using model.train_on_batch(x_batch, y_batch)
+            model.fit(x_train, y_train, epochs=5, batch_size=32)
+
+            classes = model.predict(x_test, batch_size=128)
+
+
+
 
             classifier = NaiveBayesClassifier.train(training_set)
             classifiers.append(classifier)
