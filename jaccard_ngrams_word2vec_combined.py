@@ -4,6 +4,7 @@
 #       remove stop words
 
 from csv import DictReader
+import os
 import pdb
 import string
 import sys
