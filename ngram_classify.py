@@ -24,7 +24,7 @@ class NgramClassify:
         self._labeled_feature_set = []
         self._test_feature_set = []
         self.dataset = DataSet()
-        self._ngram_len = 2
+        self._ngram_len = 3
 
     def do_validation(self):
         folds, hold_out = kfold_split(self.dataset, n_folds=10)

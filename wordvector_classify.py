@@ -1,9 +1,9 @@
 from libs.dataset import DataSet
-from libs.gen_wordvectors import WordVector
+from libs.gen_wordvectors_text8 import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
-from gensim.models import word2vec
 from nltk.classify import NaiveBayesClassifier
+from gensim.models import word2vec
 
 class WordVectorClassify:
 

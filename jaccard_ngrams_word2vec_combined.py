@@ -16,11 +16,10 @@ from nltk.classify import NaiveBayesClassifier
 from libs.dataset import DataSet
 from libs.gen_ngrams import NgramsGenerator
 from libs.gen_jaccard_sims import JaccardGenerator
-from libs.gen_wordvectors import WordVector
+from libs.gen_wordvectors_text8 import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
 from gensim.models import word2vec
-
 
 class StanceClassifier:
     def __init__(self):
