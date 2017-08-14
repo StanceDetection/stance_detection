@@ -18,9 +18,7 @@ class WordVector:
 
             for word in dataset.articles[stance['Body ID']].split('\n', 1)[0].split(' '):
                 word = ''.join(ch for ch in word if ch not in exclude).lower()
-                words += 1
                 if word in model.wv.vocab:
-                    foundwords += 1
                     if newSentence:
                         sentencevector = model.wv[word]
                         newSentence = False
