@@ -5,138 +5,83 @@ from libs.dataset import DataSet
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
 
-from gensim.models import word2vec
-
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
-from keras.layers import Dense, Activation, LSTM
-from keras.layers.embedding import Embedding # TODO: needed?
+from keras.layers import Dense, Activation, LSTM, Embedding, Dropout
 
 class StanceClassifier:
     def __init__(self):
         self._labeled_feature_set = []
         self._test_feature_set = []
         self.dataset = DataSet()
-        self._ngram_len = 2
 
     def do_validation(self):
-
-        folds, hold_out = kfold_split(self.dataset, n_folds=10)
+        folds, hold_out = kfold_split(self.dataset, n_folds=1)
         fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
-
-        print "Generating features for each fold"
-        for fold_id in fold_stances:
-            print "Generating features for fold ", fold_id
-            bodies = folds[fold_id]
-            stances = fold_stances[fold_id]
-
-            fold_avg_sims, fold_max_sims = JaccardGenerator().gen_jaccard_sims(
-                    self.dataset, bodies, stances)
-            common_ngrams = NgramsGenerator().gen_common_ngrams(
-                    self.dataset, bodies, stances, self._ngram_len)
-
-            labeled_feature_set = []
-            for i in range(len(stances)):
-                labeled_feature = ({
-                    'avg_sims':fold_avg_sims[i],
-                    'max_sims':fold_max_sims[i],
-                    'common_ngrams':common_ngrams[i]},
-                    self._process_stance(stances[i]['Stance']))
-                labeled_feature_set.append(labeled_feature)
-
-            labeled_feat_dict[fold_id] = labeled_feature_set
-
-        print "Generating features for hold out fold"
-        holdout_avg_sims, holdout_max_sims = JaccardGenerator().gen_jaccard_sims(
-                self.dataset, hold_out, hold_out_stances)
-        holdout_common_ngrams = NgramsGenerator().gen_common_ngrams(
-                self.dataset, hold_out, hold_out_stances, self._ngram_len)
-
-        # TODO: Needed?
-        h_unlabeled_features = []
-        h_labels = []
-        for i in range(len(hold_out_stances)):
-            unlabeled_feature = {
-                'avg_sims': holdout_avg_sims[i],
-                'max_sims': holdout_max_sims[i],
-                'common_ngrams': holdout_common_ngrams[i]}
-            label = self._process_stance(hold_out_stances[i]['Stance'])
-
-            h_unlabeled_features.append(unlabeled_feature)
-            h_labels.append(label)
 
         fold_accuracy = {}
         best_fold_accuracy = 0.0
         classifiers = []
+
+        stance_options = {'discuss':0,
+                        'unrelated':1,
+                        'agree':2,
+                        'disagree':3}
 
         print "Validating using each fold as testing set"
         for fold_id in fold_stances:
             fold_ids = list(range(len(folds)))
             del fold_ids[fold_id] # deleted fold is test set for this run
 
-            training_set = [feat for fid in fold_ids for feat in labeled_feat_dict[fid]]
-            x_train = []
-            y_train = []
+            stances = fold_stances[fold_id]
 
-            # Pull out x_train and y_train
-            for tup in training_set:
-                print(tup[0])
-                print(tup[1])
+            x_train = [] # List of lists of indexes
+            y_train = [] # Stances number 0-3
+            for stance in stances:
+                body = self.dataset.getArticle(stance['Body ID'])
+                x_train.append(body) # TODO: incorporate head
+                y_train.append(stance_options[stance['Stance']])
 
-            testing_set = []
-            testing_labels = []
+            x_test = []
+            y_test = []
+            for stance in hold_out_stances:
+                body = self.dataset.getArticle(stance['Body ID'])
+                x_test.append(body)
+                y_test.append(stance_options[stance['Stance']])
 
-            for feat, label in labeled_feat_dict[fold_id]:
-                testing_set.append(feat)
-                testing_labels.append(label)
+            # Keras preprocessing
+            num_words = 5000 # Only consider most common words in dataset
+            seq_len = 100
 
+            tokenizer = Tokenizer(num_words = num_words)
 
-            # Init Classifier
+            tokenizer.fit_on_texts(x_train + x_test)
+
+            # Convert from text to sequence (list of indices)
+            x_train = tokenizer.texts_to_sequences(x_train)
+            x_test = tokenizer.texts_to_sequences(x_test)
+
+            # Truncate or pad to sequence len
+            x_train = pad_sequences(x_train, maxlen=seq_len)
+            x_test = pad_sequences(x_test, maxlen=seq_len)
+
+            # Create LSTM model
             model = Sequential()
 
             # Stack Layers
-            model.add(Dense(units=64, input_dim=100))
-            model.add(Activation('relu'))
-            model.add(Dense(units=10))
-            model.add(Activation('softmax'))
+            model.add(Embedding(num_words,output_dim=256))
+            model.add(LSTM(128))
+            #model.add(Dropout(0.5))
+            model.add(Dense(1, activation='sigmoid'))
 
-            # Configure Learning Process
-            model.compile(loss='categorical_crossentropy',
-                        optimizer='sgd',
-                        metrics=['accuracy'])
+            model.compile(optimizer='rmsprop', loss='binary_crossentropy',metrics=['accuracy'])
 
-            # NOTE: Manually feed model using model.train_on_batch(x_batch, y_batch)
-            model.fit(x_train, y_train, epochs=5, batch_size=32)
+            model.fit(x_train, y_train, epochs=1, batch_size=32)
+            scores = model.evaluate(x_test, y_test, batch_size=32)
 
-            classes = model.predict(x_test, batch_size=128)
-
-
-
-
-            classifier = NaiveBayesClassifier.train(training_set)
-            classifiers.append(classifier)
-            pred = classifier.classify_many(testing_set)
-
-            accuracy = self._score(pred, testing_labels)
-            print "Fold ", fold_id, "accuracy: ", accuracy
-            if accuracy > best_fold_accuracy:
-                best_fold_accuracy = accuracy
-                best_fold_cls = classifier
-
-        h_res = best_fold_cls.classify_many(h_unlabeled_features)
-        print 'holdout score:', self._score(h_res, h_labels)
-
-    def _score(self, predicted, actual):
-        num_correct = 0
-        for idx in range(len(predicted)):
-            if predicted[idx] == actual[idx]:
-                num_correct += 1
-        accuracy = num_correct / float(len(predicted))
-        return accuracy
-
-
-    def _process_stance(self, stance):
-        return 'unrelated' if stance == 'unrelated' else 'related'
-
+            print('Score:')
+            print(scores)
 
 if __name__ == "__main__":
     StanceClassifier().do_validation()

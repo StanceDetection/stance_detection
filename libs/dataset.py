@@ -33,3 +33,7 @@ class DataSet():
             for line in r:
                 rows.append(line)
         return rows
+
+    def getArticle(self, article_id):
+        body = self.articles[article_id].encode('utf-8')
+        return body
