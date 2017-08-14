@@ -1,9 +1,9 @@
 from libs.dataset import DataSet
-from libs.gen_wordvectors import WordVector
+from libs.gen_wordvectors_text8 import WordVector
 from libs.generate_test_splits import generate_hold_out_split, kfold_split, get_stances_for_folds
 from libs.score import score_submission
-from gensim.models import word2vec
 from nltk.classify import NaiveBayesClassifier
+from gensim.models import word2vec, KeyedVectors
 
 class WordVectorClassify:
 
@@ -15,7 +15,8 @@ class WordVectorClassify:
         fold_stances, hold_out_stances = get_stances_for_folds(self.dataset, folds, hold_out)
         # https://cs.fit.edu/~mmahoney/compression/textdata.html
         sentences = word2vec.Text8Corpus('text8')
-        model = word2vec.Word2Vec(sentences, size=200)
+        # model = KeyedVectors.load_word2vec_format('GoogleNews-vectors-negative300.bin', binary=True)
+        model = word2vec.Word2Vec(sentences, size=500)
 
         labeled_feat_dict = {}
 

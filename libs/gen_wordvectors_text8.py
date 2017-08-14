@@ -1,17 +1,23 @@
+from __future__ import division
 from scipy import spatial
 from csv import DictReader
+import string
 
 class WordVector:
 
     def gen_wordvectors(self, dataset, body_ids, stances, model):
         wordvectordists = []
 
+        exclude = set(string.punctuation)
+
         for stance in stances:
             headingvector = None
             sentencevector = None
             newSentence = True
             newHeading = True
+
             for word in dataset.articles[stance['Body ID']].split('\n', 1)[0].split(' '):
+                word = ''.join(ch for ch in word if ch not in exclude).lower()
                 if word in model.wv.vocab:
                     if newSentence:
                         sentencevector = model.wv[word]
