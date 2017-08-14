@@ -1,4 +1,5 @@
 from csv import DictReader
+from nltk.corpus import stopwords
 import pdb
 
 
@@ -21,9 +22,20 @@ class DataSet():
         for article in articles:
             self.articles[int(article['Body ID'])] = article['articleBody'].decode('utf-8')
 
+        #remove_stop_words
+        self.remove_stop_words()
+
         print("Total stances: " + str(len(self.stances)))
         print("Total bodies: " + str(len(self.articles)))
 
+    def remove_stop_words(self):
+        stopWords = stopwords.words("english")
+        for stance in self.stances:
+            filteredStance = ' '.join([word for word in stance['Headline'].split(" ") if word not in stopWords])
+            stance['Headline'] = filteredStance
+        for article in self.articles:
+            filteredArticle = ' '.join([word for word in self.articles[article].split(" ") if word not in stopWords])
+            self.articles[article] = filteredArticle
 
     def read(self,filename):
         rows = []
