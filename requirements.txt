@@ -12,7 +12,7 @@ pdb==0.1
 pep8==1.7.0
 pyparsing==2.2.0
 python-gnupg==0.4.0
-PyYAML==3.12
+PyYAML==5.4
 requests==2.18.3
 scikit-learn==0.18.1
 scipy==0.19.0
